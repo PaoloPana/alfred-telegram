@@ -1,9 +1,10 @@
 use std::collections::LinkedList;
 use std::sync::Arc;
-use alfred_rs::connection::{MODULE_INFO_TOPIC_REQUEST, Publisher, Subscriber};
+use alfred_rs::connection::{Receiver, Sender};
 use alfred_rs::error::Error;
+use alfred_rs::interface_module::InterfaceModule;
 use alfred_rs::message::MessageType;
-use alfred_rs::module::Module;
+use alfred_rs::pubsub_connection::MODULE_INFO_TOPIC_REQUEST;
 use log::{debug, error, warn};
 use teloxide::{Bot};
 use teloxide::prelude::{Message, Requester};
@@ -19,7 +20,7 @@ const RESPONSE_TOPIC: &'static str = "telegram";
 async fn main() -> Result<(), Error> {
     env_logger::init();
     debug!("Starting telegram module...");
-    let module = Module::new(MODULE_NAME.to_string()).await?;
+    let module = InterfaceModule::new(MODULE_NAME.to_string()).await?;
 
     let bot_token = module.config.get_module_value("bot_token".to_string()).expect("BOT token not found");
     let callback_topic = module.config.get_module_value("callback".to_string());
@@ -38,13 +39,13 @@ async fn main() -> Result<(), Error> {
         let bot2 = bot2.clone();
         async move {
             debug!("Configuring Alfred receiver...");
-            alfred_subscriber.lock().await.subscribe(RESPONSE_TOPIC.to_string()).await.expect("Error on alfred subscription");
+            alfred_subscriber.lock().await.listen(RESPONSE_TOPIC.to_string()).await.expect("Error on alfred subscription");
             debug!("Configured Alfred receiver!!!");
             loop {
                 debug!("Waiting for new Alfred messages...");
                 // TODO: remove all ".expect" and substitute with other
                 let mut subscriber = alfred_subscriber.lock().await;
-                let (topic, message) = subscriber.get_message().await.expect("Error on receiving Alfred Message");
+                let (topic, message) = subscriber.receive().await.expect("Error on receiving Alfred Message");
                 let mut publisher = alfred_publisher.lock().await;
                 // TODO: add macro for manage_module_info_request
                 if topic == MODULE_INFO_TOPIC_REQUEST {
@@ -89,7 +90,7 @@ async fn main() -> Result<(), Error> {
             }
             let alfred_msg = alfred_msg_res.unwrap();
             if callback_topic.is_some() {
-                alfred_publisher.lock().await.publish(callback_topic.unwrap().to_string(), &alfred_msg).await.expect("Error on publish");
+                alfred_publisher.lock().await.send(callback_topic.unwrap().to_string(), &alfred_msg).await.expect("Error on publish");
             }
             Ok(())
         }
