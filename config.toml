@@ -1,8 +1,8 @@
 [alfred]
 url = "tcp://127.0.0.1"
-pub_port = 5678
-sub_port = 1234
+pub_port = "5678"
+sub_port = "1234"
 
-[module]
+[telegram]
 bot_token = ""
 callback = "ai_callback"
