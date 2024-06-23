@@ -9,6 +9,5 @@ edition = "2021"
 teloxide = "0.12.2"
 tokio = "1.37.0"
 alfred-rs = { path = "../alfred-rs" }
-log = "0.4.21"
 env_logger = "0.11.3"
 thiserror = "1.0.61"
