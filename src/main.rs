@@ -20,10 +20,10 @@ const RESPONSE_TOPIC: &'static str = "telegram";
 async fn main() -> Result<(), Error> {
     env_logger::init();
     debug!("Starting telegram module...");
-    let module = InterfaceModule::new(MODULE_NAME.to_string()).await?;
+    let module = InterfaceModule::new(MODULE_NAME).await?;
 
-    let bot_token = module.config.get_module_value("bot_token".to_string()).expect("BOT token not found");
-    let callback_topic = module.config.get_module_value("callback".to_string());
+    let bot_token = module.config.get_module_value("bot_token").expect("BOT token not found");
+    let callback_topic = module.config.get_module_value("callback");
     if callback_topic.is_none() {
         warn!("Unknown callback topic.")
     }
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Error> {
         let bot2 = bot2.clone();
         async move {
             debug!("Configuring Alfred receiver...");
-            alfred_subscriber.lock().await.listen(RESPONSE_TOPIC.to_string()).await.expect("Error on alfred subscription");
+            alfred_subscriber.lock().await.listen(RESPONSE_TOPIC).await.expect("Error on alfred subscription");
             debug!("Configured Alfred receiver!!!");
             loop {
                 debug!("Waiting for new Alfred messages...");
@@ -49,7 +49,7 @@ async fn main() -> Result<(), Error> {
                 let mut publisher = alfred_publisher.lock().await;
                 // TODO: add macro for manage_module_info_request
                 if topic == MODULE_INFO_TOPIC_REQUEST {
-                    publisher.send_module_info(MODULE_NAME.to_string()).await.expect("Error replying to MODULE_INFO_TOPIC_REQUEST");
+                    publisher.send_module_info(MODULE_NAME).await.expect("Error replying to MODULE_INFO_TOPIC_REQUEST");
                     continue;
                 }
                 debug!("New message on topic {}: {:?}", topic, message);
@@ -90,7 +90,7 @@ async fn main() -> Result<(), Error> {
             }
             let alfred_msg = alfred_msg_res.unwrap();
             if callback_topic.is_some() {
-                alfred_publisher.lock().await.send(callback_topic.unwrap().to_string(), &alfred_msg).await.expect("Error on publish");
+                alfred_publisher.lock().await.send(callback_topic.unwrap().as_str(), &alfred_msg).await.expect("Error on publish");
             }
             Ok(())
         }
