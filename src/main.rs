@@ -15,6 +15,7 @@ use tokio::fs;
 
 const MODULE_NAME: &'static str = "telegram";
 const RESPONSE_TOPIC: &'static str = "telegram";
+const NEW_INCOMING_MESSAGE_TOPIC: &'static str = "new_incoming_message";
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> Result<(), Error> {
@@ -89,6 +90,7 @@ async fn main() -> Result<(), Error> {
                 return Ok(());
             }
             let alfred_msg = alfred_msg_res.unwrap();
+            alfred_publisher.lock().await.send_event(MODULE_NAME, NEW_INCOMING_MESSAGE_TOPIC, &alfred_msg).await.expect("Error on sending new incoming message event");
             if callback_topic.is_some() {
                 alfred_publisher.lock().await.send(callback_topic.unwrap().as_str(), &alfred_msg).await.expect("Error on publish");
             }
