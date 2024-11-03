@@ -1,4 +1,4 @@
-use std::collections::LinkedList;
+use std::collections::{LinkedList, HashMap};
 use std::sync::Arc;
 use alfred_rs::connection::{Receiver, Sender};
 use alfred_rs::error::Error;
@@ -13,9 +13,9 @@ use tokio::sync::Mutex;
 use teloxide::net::Download;
 use tokio::fs;
 
-const MODULE_NAME: &'static str = "telegram";
-const RESPONSE_TOPIC: &'static str = "telegram";
-const NEW_INCOMING_MESSAGE_TOPIC: &'static str = "new_incoming_message";
+const MODULE_NAME: &str = "telegram";
+const RESPONSE_TOPIC: &str = "telegram";
+const NEW_INCOMING_MESSAGE_TOPIC: &str = "new_incoming_message";
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> Result<(), Error> {
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Error> {
     let bot_token = module.config.get_module_value("bot_token").expect("BOT token not found");
     let callback_topic = module.config.get_module_value("callback");
     if callback_topic.is_none() {
-        warn!("Unknown callback topic.")
+        warn!("Unknown callback topic.");
     }
     let bot = Bot::new(bot_token);
     let bot2 = bot.clone();
@@ -45,18 +45,16 @@ async fn main() -> Result<(), Error> {
             loop {
                 debug!("Waiting for new Alfred messages...");
                 // TODO: remove all ".expect" and substitute with other
-                let mut subscriber = alfred_subscriber.lock().await;
-                let (topic, message) = subscriber.receive().await.expect("Error on receiving Alfred Message");
-                let mut publisher = alfred_publisher.lock().await;
+                let (topic, message) = alfred_subscriber.lock().await.receive().await.expect("Error on receiving Alfred Message");
                 // TODO: add macro for manage_module_info_request
                 if topic == MODULE_INFO_TOPIC_REQUEST {
-                    publisher.send_module_info(MODULE_NAME).await.expect("Error replying to MODULE_INFO_TOPIC_REQUEST");
+                    alfred_publisher.lock().await.send_module_info(MODULE_NAME).await.expect("Error replying to MODULE_INFO_TOPIC_REQUEST");
                     continue;
                 }
                 debug!("New message on topic {}: {:?}", topic, message);
                 match topic.as_str() {
                     RESPONSE_TOPIC => {
-                        let chat_id = ChatId(message.sender.parse().unwrap());
+                        let chat_id = ChatId(message.sender.parse().expect("Error on chat_id"));
                         match message.message_type {
                             MessageType::TEXT => {
                                 bot2.send_message(chat_id, message.text).await.expect("Error on send message to telegram");
@@ -65,7 +63,7 @@ async fn main() -> Result<(), Error> {
                                 let input_file = InputFile::file(message.text);
                                 bot2.send_voice(chat_id, input_file).await.expect("Error on send voice to telegram");
                             }
-                            _ => {
+                            MessageType::UNKNOWN | MessageType::PHOTO => {
                                 warn!("Unsupported MessageType");
                             }
                         }
@@ -85,14 +83,16 @@ async fn main() -> Result<(), Error> {
         let callback_topic = callback_topic.clone();
         async move {
             let alfred_msg_res = telegram_msg_to_alfred_msg(msg, &bot).await;
-            if alfred_msg_res.is_err() {
-                error!("{}", alfred_msg_res.err().unwrap());
-                return Ok(());
-            }
-            let alfred_msg = alfred_msg_res.unwrap();
-            alfred_publisher.lock().await.send_event(MODULE_NAME, NEW_INCOMING_MESSAGE_TOPIC, &alfred_msg).await.expect("Error on sending new incoming message event");
-            if callback_topic.is_some() {
-                alfred_publisher.lock().await.send(callback_topic.unwrap().as_str(), &alfred_msg).await.expect("Error on publish");
+            match alfred_msg_res {
+                Ok(alfred_msg) => {
+                    alfred_publisher.lock().await.send_event(MODULE_NAME, NEW_INCOMING_MESSAGE_TOPIC, &alfred_msg).await.expect("Error on sending new incoming message event");
+                    if let Some(callback_topic) = callback_topic {
+                        alfred_publisher.lock().await.send(callback_topic.as_str(), &alfred_msg).await.expect("Error on publish");
+                    }
+                },
+                Err(err) => {
+                    error!("{err}");
+                }
             }
             Ok(())
         }
@@ -125,10 +125,10 @@ fn new_callback_msg(text: String, sender: String, message_type: MessageType) -> 
         text,
         starting_module: MODULE_NAME.to_string(),
         // TODO: remove request_topic?
-        request_topic: "".to_string(),
+        request_topic: String::new(),
         response_topics: LinkedList::from([RESPONSE_TOPIC.to_string()]),
         sender,
         message_type,
-        params: Default::default(),
+        params: HashMap::default(),
     }
 }
