@@ -2,10 +2,10 @@ use std::collections::{LinkedList, HashMap};
 use std::sync::Arc;
 use alfred_rs::connection::{Receiver, Sender};
 use alfred_rs::error::Error;
-use alfred_rs::interface_module::InterfaceModule;
+use alfred_rs::AlfredModule;
 use alfred_rs::log::{debug, error, warn};
 use alfred_rs::message::MessageType;
-use alfred_rs::pubsub_connection::MODULE_INFO_TOPIC_REQUEST;
+use alfred_rs::MODULE_INFO_TOPIC_REQUEST;
 use teloxide::Bot;
 use teloxide::prelude::{Message, Requester};
 use teloxide::types::{ChatId, InputFile};
@@ -21,7 +21,7 @@ const NEW_INCOMING_MESSAGE_TOPIC: &str = "new_incoming_message";
 async fn main() -> Result<(), Error> {
     env_logger::init();
     debug!("Starting telegram module...");
-    let module = InterfaceModule::new(MODULE_NAME).await?;
+    let module = AlfredModule::new(MODULE_NAME).await?;
 
     let bot_token = module.config.get_module_value("bot_token").expect("BOT token not found");
     let callback_topic = module.config.get_module_value("callback");
@@ -34,6 +34,7 @@ async fn main() -> Result<(), Error> {
     let alfred_publisher1 = Arc::new(Mutex::new(module.connection.publisher));
     let alfred_publisher2 = alfred_publisher1.clone();
 
+    // TODO: IMPORTANT! refactor with mpsc::channel
     tokio::spawn(async move {
         let alfred_subscriber = alfred_subscriber.clone();
         let alfred_publisher = alfred_publisher1.clone();
@@ -48,7 +49,7 @@ async fn main() -> Result<(), Error> {
                 let (topic, message) = alfred_subscriber.lock().await.receive().await.expect("Error on receiving Alfred Message");
                 // TODO: add macro for manage_module_info_request
                 if topic == MODULE_INFO_TOPIC_REQUEST {
-                    alfred_publisher.lock().await.send_module_info(MODULE_NAME).await.expect("Error replying to MODULE_INFO_TOPIC_REQUEST");
+                    alfred_publisher.lock().await.send_module_info(MODULE_NAME, &module.capabilities).await.expect("Error replying to MODULE_INFO_TOPIC_REQUEST");
                     continue;
                 }
                 debug!("New message on topic {}: {:?}", topic, message);
@@ -56,14 +57,14 @@ async fn main() -> Result<(), Error> {
                     RESPONSE_TOPIC => {
                         let chat_id = ChatId(message.sender.parse().expect("Error on chat_id"));
                         match message.message_type {
-                            MessageType::TEXT => {
+                            MessageType::Text => {
                                 bot2.send_message(chat_id, message.text).await.expect("Error on send message to telegram");
                             }
-                            MessageType::AUDIO => {
+                            MessageType::Audio => {
                                 let input_file = InputFile::file(message.text);
                                 bot2.send_voice(chat_id, input_file).await.expect("Error on send voice to telegram");
                             }
-                            MessageType::UNKNOWN | MessageType::PHOTO => {
+                            MessageType::Unknown | MessageType::Photo | MessageType::ModuleInfo => {
                                 warn!("Unsupported MessageType");
                             }
                         }
@@ -104,7 +105,7 @@ async fn main() -> Result<(), Error> {
 async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_rs::message::Message, String> {
     // TODO: implement other types of message
     // TODO: add other info to params property
-    let mut message_type = MessageType::TEXT;
+    let mut message_type = MessageType::Text;
     let mut text: String = msg.text().unwrap_or("").to_string();
     if msg.voice().is_some() {
         let voice_file_id = msg.voice().ok_or("err")?.clone().file.id;
@@ -114,7 +115,7 @@ async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_rs
         let mut dst = fs::File::create(dst_filename.clone()).await.map_err(|_| "err3".to_string())?;
         bot.download_file(&file.path, &mut dst).await.map_err(|_| "err4".to_string())?;
         text = dst_filename.to_string();
-        message_type = MessageType::AUDIO;
+        message_type = MessageType::Audio;
     }
     debug!("Received {:?} message {} from {}", message_type, text, msg.chat.id);
     Ok(new_callback_msg(text, msg.chat.id.to_string(), message_type))
