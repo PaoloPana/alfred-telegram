@@ -37,7 +37,7 @@ async fn main() -> Result<(), Error> {
         async move {
             loop {
                 debug!("Waiting for new Alfred messages...");
-                let (topic, message) = connection.receive().await.expect("Error on receiving Alfred Message");
+                let (topic, message) = connection.receive(MODULE_NAME, &module.capabilities.clone()).await.expect("Error on receiving Alfred Message");
                 debug!("New message on topic {}: {:?}", topic, message);
                 match topic.as_str() {
                     RESPONSE_TOPIC => {
