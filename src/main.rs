@@ -17,7 +17,7 @@ const NEW_INCOMING_MESSAGE_TOPIC: &str = "new_incoming_message";
 async fn main() -> Result<(), Error> {
     env_logger::init();
     debug!("Starting telegram module...");
-    let mut module = AlfredModule::new(MODULE_NAME).await?;
+    let mut module = AlfredModule::new(MODULE_NAME, env!("CARGO_PKG_VERSION")).await?;
     debug!("Configuring Alfred receiver...");
     module.listen(RESPONSE_TOPIC).await.expect("Error on alfred subscription");
 
