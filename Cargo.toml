@@ -10,7 +10,7 @@ teloxide = "0.12.2"
 tokio = "1.37.0"
 alfred-core = "0.1"
 env_logger = "0.11.3"
-thiserror = "1.0.61"
+thiserror = "2.0.9"
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
