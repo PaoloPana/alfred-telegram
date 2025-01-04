@@ -1,8 +1,8 @@
 use std::collections::{LinkedList, HashMap};
-use alfred_rs::error::Error;
-use alfred_rs::AlfredModule;
-use alfred_rs::log::{debug, error, warn};
-use alfred_rs::message::MessageType;
+use alfred_core::error::Error;
+use alfred_core::AlfredModule;
+use alfred_core::log::{debug, error, warn};
+use alfred_core::message::MessageType;
 use teloxide::Bot;
 use teloxide::prelude::{Message, Requester};
 use teloxide::types::{ChatId, InputFile};
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_rs::message::Message, String> {
+async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_core::message::Message, String> {
     // TODO: implement other types of message
     // TODO: add other info to params property
     let mut message_type = MessageType::Text;
@@ -107,8 +107,8 @@ async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_rs
     Ok(new_callback_msg(text, msg.chat.id.to_string(), message_type))
 }
 
-fn new_callback_msg(text: String, sender: String, message_type: MessageType) -> alfred_rs::message::Message {
-    alfred_rs::message::Message {
+fn new_callback_msg(text: String, sender: String, message_type: MessageType) -> alfred_core::message::Message {
+    alfred_core::message::Message {
         text,
         starting_module: MODULE_NAME.to_string(),
         // TODO: remove request_topic?
