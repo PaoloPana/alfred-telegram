@@ -1,4 +1,4 @@
-use std::collections::{LinkedList, HashMap};
+use std::collections::LinkedList;
 use alfred_core::error::Error;
 use alfred_core::AlfredModule;
 use alfred_core::log::{debug, error, warn};
@@ -47,11 +47,15 @@ async fn main() -> Result<(), Error> {
                                 bot2.send_message(chat_id, message.text).await.expect("Error on send message to telegram");
                             }
                             MessageType::Audio => {
-                                let input_file = InputFile::file(message.text);
+                                let input_file = InputFile::memory(message.text);
                                 bot2.send_voice(chat_id, input_file).await.expect("Error on send voice to telegram");
                             }
-                            MessageType::Unknown | MessageType::Photo | MessageType::ModuleInfo => {
-                                warn!("Unsupported MessageType");
+                            MessageType::Photo => {
+                                let input_file = InputFile::memory(message.text);
+                                bot2.send_photo(chat_id, input_file).await.expect("Error on send document to telegram");
+                            }
+                            MessageType::Unknown | MessageType::ModuleInfo => {
+                                warn!("Unsupported MessageType {}", message.message_type);
                             }
                         }
                     }
@@ -92,7 +96,7 @@ async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_co
     // TODO: implement other types of message
     // TODO: add other info to params property
     let mut message_type = MessageType::Text;
-    let mut text: String = msg.text().unwrap_or("").to_string();
+    let mut text = msg.text().unwrap_or("").to_string();
     if msg.voice().is_some() {
         let voice_file_id = msg.voice().ok_or("err")?.clone().file.id;
         let file = bot.get_file(voice_file_id.clone()).await.map_err(|e| e.to_string())?;
@@ -110,12 +114,9 @@ async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_co
 fn new_callback_msg(text: String, sender: String, message_type: MessageType) -> alfred_core::message::Message {
     alfred_core::message::Message {
         text,
-        starting_module: MODULE_NAME.to_string(),
-        // TODO: remove request_topic?
-        request_topic: String::new(),
         response_topics: LinkedList::from([RESPONSE_TOPIC.to_string()]),
         sender,
         message_type,
-        params: HashMap::default(),
+        ..alfred_core::message::Message::default()
     }
 }
