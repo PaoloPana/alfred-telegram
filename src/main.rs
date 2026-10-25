@@ -38,7 +38,7 @@ async fn main() -> Result<(), Error> {
             loop {
                 debug!("Waiting for new Alfred messages...");
                 let (topic, message) = connection.receive(MODULE_NAME, &module.capabilities.clone()).await.expect("Error on receiving Alfred Message");
-                debug!("New message on topic {}: {:?}", topic, message);
+                debug!("New message on topic {topic}: {message:?}");
                 match topic.as_str() {
                     RESPONSE_TOPIC => {
                         let chat_id = ChatId(message.sender.parse().expect("Error on chat_id"));
@@ -61,9 +61,9 @@ async fn main() -> Result<(), Error> {
                         }
                     }
                     _ => {
-                        warn!("Unmanaged topic {}", topic);
+                        warn!("Unmanaged topic {topic}");
                     }
-                };
+                }
             }
         }.await;
     });
@@ -105,7 +105,7 @@ async fn telegram_msg_to_alfred_msg(msg: Message, bot: &Bot) -> Result<alfred_co
         let dst_filename = format!("{current_dir}/tmp/{voice_file_id}.ogg");
         let mut dst = fs::File::create(dst_filename.clone()).await.map_err(|_| "err3".to_string())?;
         bot.download_file(&file.path, &mut dst).await.map_err(|_| "err4".to_string())?;
-        text = dst_filename.to_string();
+        text = dst_filename.clone();
         message_type = MessageType::Audio;
     }
     debug!("Received {:?} message {} from {}", message_type, text, msg.chat.id);
